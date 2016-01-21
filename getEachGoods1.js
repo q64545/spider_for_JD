@@ -3,12 +3,14 @@ var T = require('./turnunicode.js').decode;
 var $ = require("cheerio");
 var iconv = require('iconv-lite');
 var f = require("fs");
+var redis = require("redis");
 var mysql = require("mysql");
 var child_process = require('child_process');
 var P = require('./getPrice.js').getPrice;
 var C = require('./getComments.js').getComments;
 
-
+//connect to the redis
+//var client = redis.createClient(6379,'127.0.0.1');
 //connect to Mysql
 var Client = mysql.createConnection({
 	user: 'root',
@@ -25,6 +27,7 @@ var getC = function (comments) {
 	comments = comments.CommentsCount[0];
 	return comments;poorPicRate
 }
+
 var getter2 = function(content, i, j, h, l) {
 	if(content == undefined || i == undefined || j == undefined || h == undefined) { console.log("no comments !!");return; }
 	var data = content;
@@ -47,6 +50,7 @@ var getter2 = function(content, i, j, h, l) {
 	//Client.query("update JDGoods_Feature set commentsNum = 'CommentsNum', 1_Star = '1_star', 2_Star = '2_star', 3_Star = '3_star', 4_Star = '4_star', 5_Star = '5_star', goodRate = 'GoodRate', generalRate = 'GeneralRate', poorRate = 'PoorRate', commentsWithPic = 'CommentsWithPic', goodPicRate = 'GoodPicRate', generalPicRate = 'GeneralPicRate', poorPicRate = 'PoorPicRate' where ID = "+id+";");
 	Client.query("update JDGoods_value set commentsNum = " +  commentsNum + ", 1_Star = " + Star_1 + ", 2_Star = " + Star_2 + ", 3_Star = " + Star_3 + ", 4_Star = " + Star_4 + ", 5_Star = " + Star_5 + ", goodRate = " + goodRate + ", generalRate = " + generalRate + ", poorRate = " + poorRate + ", commentsWithPic = " + commentsWithPic + ", goodPicRate = " + goodPicRate + ", generalPicRate = " + generalPicRate + ", poorPicRate = " + poorPicRate + " where ID = "+id+";");
 }
+
 //get the price of each goods and store them into Mysql
 var cnp = function (list){
   list = list[0]
@@ -62,7 +66,7 @@ var getter1 = function(content, i, j, h, l) {
 	Client.query("update JDGoods_value set price = " + price.p + " where ID = " + id + ";");
 }
 
-//get each feature of each goods and store them into Mysql
+
 var getter = function(content, i, j, h, l) {
 	if(content == undefined || i == undefined || j == undefined || h == undefined) {
 		console.log("error");
@@ -80,7 +84,7 @@ var getter = function(content, i, j, h, l) {
 
 	$(html).find('#parameter2 li').each(function() {
 		var tmp = {};
-		tmp.attribute = T($(this).html().replace('"', "").replace('"', "").replace('"', "").replace('"', "")).split("：")[0];
+		tmp.attribute = T($(this).html().replace("'", "").replace("'", "").replace("'", "").replace("'", "").replace('"', "").replace('"', "").replace('"', "").replace('"', "")).split("：")[0];
 		tmp.value = $(this).attr('title');
 		goods.push(tmp);
 	});
@@ -99,8 +103,16 @@ var getter = function(content, i, j, h, l) {
 		}
 	});
 	for(var i = 0; i < goods.length; i++) {
-		Client.query("update JDGoods_Feature set feature"+(i+1)+' = "'+goods[i].attribute+'" where ID = '+id+";");
-		Client.query("update JDGoods_value set value"+(i+1)+' = "'+goods[i].value+'" where ID = '+id+";");
+		Client.query("update JDGoods_Feature set feature"+(i+1)+' = "'+goods[i].attribute+'" where ID = '+id+";", function selectCb(err, results, fields) {
+			if(err) {
+				console.log(err.stack);
+			}
+		});
+		Client.query("update JDGoods_value set value"+(i+1)+' = "'+goods[i].value+'" where ID = '+id+";", function selectCb(err, results, fields) {
+			if(err) {
+				console.log(err.stack);
+			}
+		});
 	}
 	//client.sadd("JDGoods", JSON.stringify(goods), function() {});
 	console.log("load one good!!!!");
@@ -121,7 +133,7 @@ getEachGoods2.on('close', function (code) {
 
 
 
-//iterate goodsURL to get each good data
+//iterate to get each good data
 for(var i = 0; i < Math.floor(goodsURL.length/2); i++) {
 	for(var j = 0; j < goodsURL[i].length; j++) {
 		var url = goodsURL[i][j].href;
