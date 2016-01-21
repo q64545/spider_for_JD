@@ -3,11 +3,16 @@ var T = require('./turnunicode.js').decode;
 var $ = require("cheerio");
 var iconv = require('iconv-lite');
 var f = require("fs");
+var redis = require("redis");
 var mysql = require("mysql");
 var P = require('./getPrice.js').getPrice;
 var C = require('./getComments.js').getComments;
 
 
+
+
+//connect to the redis
+//var client = redis.createClient(6379,'127.0.0.1');
 //connect to Mysql
 var Client = mysql.createConnection({
 	user: 'root2',
@@ -25,6 +30,7 @@ var getC = function (comments) {
 	comments = comments.CommentsCount[0];
 	return comments;poorPicRate
 }
+
 var getter2 = function(content, i, j, h, l) {
 	if(content == undefined || i == undefined || j == undefined || h == undefined) { console.log("no comments !!");return; }
 	var data = content;
@@ -53,6 +59,9 @@ var cnp = function (list){
   list = list[0]
   return list;
 }
+
+
+
 var getter1 = function(content, i, j, h, l) {
 	if(content == undefined || i == undefined || j == undefined || h == undefined) { console.log("no price!!");return; }
 	var data = content;var C = require('./getComments.js').getComments;
@@ -63,7 +72,7 @@ var getter1 = function(content, i, j, h, l) {
 	Client.query("update JDGoods_value set price = "+price.p+" where ID = "+id+";");
 }
 
-//get the features of each goods and store them into Mysql
+
 var getter = function(content, i, j, h, l) {
 	if(content == undefined || i == undefined || j == undefined || h == undefined) {
 		console.log("error");
@@ -81,7 +90,7 @@ var getter = function(content, i, j, h, l) {
 
 	$(html).find('#parameter2 li').each(function() {
 		var tmp = {};
-		tmp.attribute = T($(this).html().replace('"', "").replace('"', "").replace('"', "").replace('"', "")).split("：")[0];
+		tmp.attribute = T($(this).html().replace("'", "").replace("'", "").replace("'", "").replace("'", "").replace('"', "").replace('"', "").replace('"', "").replace('"', "")).split("：")[0];
 		tmp.value = $(this).attr('title');
 		goods.push(tmp);
 	});
@@ -99,11 +108,21 @@ var getter = function(content, i, j, h, l) {
 		}
 	});
 	for(var i = 0; i < goods.length; i++) {
-		Client.query("update JDGoods_Feature set feature"+(i+1)+' = "'+goods[i].attribute+'" where ID = '+id+";");
-		Client.query("update JDGoods_value set value"+(i+1)+' = "'+goods[i].value+'" where ID = '+id+";");
+		Client.query("update JDGoods_Feature set feature"+(i+1)+' = "'+goods[i].attribute+'" where ID = '+id+";", function selectCb(err, results, fields) {
+			if(err) {
+				console.log(err.stack);
+			}
+		});
+		Client.query("update JDGoods_value set value"+(i+1)+' = "'+goods[i].value+'" where ID = '+id+";", function selectCb(err, results, fields) {
+			if(err) {
+				console.log(err.stack);
+			}
+		});
 	}
+	//client.sadd("JDGoods", JSON.stringify(goods), function() {});
 	console.log("load one good!!!!");
 }
+
 
 //iterate to get each good data
 for(var i = Math.floor(goodsURL.length/2) + 1; i < goodsURL.length; i++) {
